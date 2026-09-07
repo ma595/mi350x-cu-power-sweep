@@ -164,15 +164,48 @@ def run_command(command: list[str], check: bool = True) -> subprocess.CompletedP
     return subprocess.run(command, text=True, capture_output=True, check=check)
 
 
-def device_sysfs(device: int) -> tuple[Path, Path, str]:
-    listing = run_command(["rocm-smi", "--showbus"])
-    match = re.search(
-        rf"GPU\[{device}\].*?PCI Bus:\s*([0-9a-fA-F:.]+)",
-        listing.stdout,
+def kfd_gpu_addresses() -> list[str]:
+    """PCI addresses of the GPU agents in KFD node order.
+
+    This is the order ROCr enumerates agents, and therefore the order
+    ROCR_VISIBLE_DEVICES / HIP_VISIBLE_DEVICES index. It is NOT the order
+    rocm-smi reports, which sorts by PCI address.
+    """
+    nodes = sorted(
+        Path("/sys/class/kfd/kfd/topology/nodes").glob("[0-9]*"),
+        key=lambda path: int(path.name),
     )
-    if match is None:
-        raise RuntimeError(f"could not find GPU {device} in rocm-smi --showbus")
-    bdf = match.group(1).lower()
+    addresses = []
+    for node in nodes:
+        try:
+            text = (node / "properties").read_text()
+        except OSError:
+            continue
+        fields = dict(
+            line.split(maxsplit=1) for line in text.splitlines() if " " in line
+        )
+        if int(fields.get("simd_count", "0")) == 0:
+            continue  # CPU node, not a GPU agent
+        location = int(fields["location_id"])
+        addresses.append(
+            "%04x:%02x:%02x.%x"
+            % (
+                int(fields.get("domain", "0")),
+                (location >> 8) & 0xFF,
+                (location >> 3) & 0x1F,
+                location & 0x7,
+            )
+        )
+    return addresses
+
+
+def device_sysfs(device: int) -> tuple[Path, Path, str]:
+    addresses = kfd_gpu_addresses()
+    if device >= len(addresses):
+        raise RuntimeError(
+            f"device {device} out of range; KFD reports {len(addresses)} GPUs"
+        )
+    bdf = addresses[device]
     for card in Path("/sys/class/drm").glob("card[0-9]*"):
         uevent = card / "device/uevent"
         if not uevent.exists() or f"pci_slot_name={bdf}" not in uevent.read_text().lower():
@@ -271,6 +304,7 @@ def run_window(
     environment: dict[str, str],
     device_path: Path,
     hwmon: Path,
+    expected_bdf: str,
     cancelled: threading.Event,
     active: dict[str, subprocess.Popen[str] | None],
 ) -> tuple[list[dict[str, float | None]], str, str, list[str], float]:
@@ -295,6 +329,23 @@ def run_window(
     )
     active["process"] = process
     assert process.stdout is not None
+    device_line = process.stdout.readline()
+    if not device_line.startswith("BENCHMARK_DEVICE "):
+        stop_process(process)
+        _, stderr = process.communicate()
+        active["process"] = None
+        raise RuntimeError(
+            f"benchmark did not report its device: {device_line!r}; {stderr.strip()}"
+        )
+    reported_bdf = device_line.split(maxsplit=1)[1].strip().lower()
+    if reported_bdf != expected_bdf:
+        stop_process(process)
+        process.communicate()
+        active["process"] = None
+        raise RuntimeError(
+            f"device mismatch: kernel ran on {reported_bdf} but telemetry reads "
+            f"{expected_bdf}; refusing to record another GPU's power"
+        )
     ready = process.stdout.readline()
     if ready.strip() != f"BENCHMARK_READY {name}":
         stop_process(process)
@@ -302,7 +353,7 @@ def run_window(
         active["process"] = None
         raise RuntimeError(f"benchmark did not become ready: {ready!r}; {stderr.strip()}")
     ready_time = time.monotonic()
-    stdout_parts = [ready]
+    stdout_parts = [device_line, ready]
     stderr_parts: list[str] = []
     assert process.stderr is not None
     stdout_thread = threading.Thread(
@@ -540,6 +591,7 @@ def main() -> int:
                 environment,
                 device_path,
                 hwmon,
+                bdf,
                 cancelled,
                 active,
             )
@@ -560,6 +612,7 @@ def main() -> int:
                 environment,
                 device_path,
                 hwmon,
+                bdf,
                 cancelled,
                 active,
             )
