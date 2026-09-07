@@ -190,7 +190,7 @@ __global__ void vector_fp32_fma(float *output) {
 
 struct Options {
     std::string benchmark;
-    int blocks = 304;
+    int blocks = 256;
     int threads = 1024;
     double duration_s = 1.0;
     bool list = false;
@@ -207,7 +207,7 @@ const std::vector<std::string> BENCHMARKS = {
 void usage(const char *program) {
     std::cerr
         << "Usage: " << program << " --exact-filter NAME [options]\n"
-        << "  --blocks N       Block count (default: 304)\n"
+        << "  --blocks N       Block count (default: 256)\n"
         << "  --threads N      Threads per block (default: 1024)\n"
         << "  --duration-s S   Repeat for at least S seconds\n"
         << "  --list           List the five workloads\n";
@@ -292,7 +292,7 @@ int main(int argc, char **argv) {
             return 2;
         }
         if (options.threads > 1024) {
-            throw std::runtime_error("MI300X supports at most 1024 threads per block");
+            throw std::runtime_error("MI350X supports at most 1024 threads per block");
         }
 
         int device_count = 0;

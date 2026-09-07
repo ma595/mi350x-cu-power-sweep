@@ -9,7 +9,7 @@
   "cool_timeout_s": 1800,
   "precondition": {
     "benchmark": "VECTOR FP32 FMA",
-    "blocks": 304,
+    "blocks": 256,
     "threads": 1024,
     "duration_s": 30
   },
@@ -19,31 +19,31 @@
     "benchmarks": [
       {
         "name": "SCALAR ADD",
-        "blocks": 304,
+        "blocks": 256,
         "threads": 1024,
         "envelope": "very-low"
       },
       {
         "name": "SFU TRANSCENDENTAL",
-        "blocks": 304,
+        "blocks": 256,
         "threads": 1024,
         "envelope": "low"
       },
       {
         "name": "MATRIX MFMA FP32",
-        "blocks": 304,
+        "blocks": 256,
         "threads": 1024,
         "envelope": "medium"
       },
       {
         "name": "VECTOR FP64 FMA",
-        "blocks": 304,
+        "blocks": 256,
         "threads": 1024,
         "envelope": "high"
       },
       {
         "name": "VECTOR FP32 FMA",
-        "blocks": 304,
+        "blocks": 256,
         "threads": 1024,
         "envelope": "very-high"
       }
