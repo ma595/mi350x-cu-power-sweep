@@ -5,7 +5,7 @@
   "sclk_reference_values_mhz": [500, 678, 856, 1033, 1211, 1389, 1567, 1744, 1922, 2100],
   "repetitions": 3,
   "samples_per_second": 10,
-  "cool_to_c": 50,
+  "cool_to_c": 67,
   "cool_timeout_s": 1800,
   "precondition": {
     "benchmark": "VECTOR FP32 FMA",
