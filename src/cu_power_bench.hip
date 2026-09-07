@@ -304,6 +304,12 @@ int main(int argc, char **argv) {
         }
         HIP_CHECK(hipSetDevice(0));
 
+        // Report the PCI address actually in use, so the collector can attach
+        // telemetry to the same card instead of inferring it from an index.
+        char pci_bus_id[64] = {};
+        HIP_CHECK(hipDeviceGetPCIBusId(pci_bus_id, sizeof(pci_bus_id), 0));
+        std::cout << "BENCHMARK_DEVICE " << pci_bus_id << std::endl;
+
         const std::size_t elements = std::max<std::size_t>(
             4096,
             static_cast<std::size_t>(options.blocks) * options.threads
