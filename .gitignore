@@ -1,0 +1,7 @@
+# build output
+build/
+# measurement data (large, machine-specific; drop this line to version results)
+results/
+# python bytecode
+__pycache__/
+*.pyc

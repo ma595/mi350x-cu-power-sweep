@@ -1,0 +1,52 @@
+{
+  "device": 0,
+  "binary": "build/cu_power_bench",
+  "clock_mode": "observe",
+  "sclk_reference_values_mhz": [500, 678, 856, 1033, 1211, 1389, 1567, 1744, 1922, 2100],
+  "repetitions": 3,
+  "samples_per_second": 10,
+  "cool_to_c": 50,
+  "cool_timeout_s": 1800,
+  "precondition": {
+    "benchmark": "VECTOR FP32 FMA",
+    "blocks": 304,
+    "threads": 1024,
+    "duration_s": 30
+  },
+  "measurement": {
+    "warmup_s": 5,
+    "duration_s": 30,
+    "benchmarks": [
+      {
+        "name": "SCALAR ADD",
+        "blocks": 304,
+        "threads": 1024,
+        "envelope": "very-low"
+      },
+      {
+        "name": "SFU TRANSCENDENTAL",
+        "blocks": 304,
+        "threads": 1024,
+        "envelope": "low"
+      },
+      {
+        "name": "MATRIX MFMA FP32",
+        "blocks": 304,
+        "threads": 1024,
+        "envelope": "medium"
+      },
+      {
+        "name": "VECTOR FP64 FMA",
+        "blocks": 304,
+        "threads": 1024,
+        "envelope": "high"
+      },
+      {
+        "name": "VECTOR FP32 FMA",
+        "blocks": 304,
+        "threads": 1024,
+        "envelope": "very-high"
+      }
+    ]
+  }
+}
