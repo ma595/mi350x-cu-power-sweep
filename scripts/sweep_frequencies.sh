@@ -83,6 +83,13 @@ for frequency in $FREQUENCIES; do
   echo "== ${frequency} MHz -> $out"
   mkdir -p "$out"
 
+  # Start every frequency from a clean clock state, so no iteration can inherit
+  # a cap from the one before. In the first full sweep the 2200 MHz request did
+  # not take effect and re-measured ~1810 MHz instead; it has measured correctly
+  # on every run since this reset was added.
+  reset_clocks
+  sleep 2
+
   # amd-smi exits 0 even when it refuses the request, so the output has to be
   # inspected. `-L sclk max` cannot be set equal to the DPM minimum, so the
   # bottom of the range needs performance determinism instead.
