@@ -2,7 +2,7 @@
   "device": 0,
   "binary": "build/cu_power_bench",
   "clock_mode": "observe",
-  "sclk_reference_values_mhz": [500, 678, 856, 1033, 1211, 1389, 1567, 1744, 1922, 2100],
+  "sclk_reference_values_mhz": [500, 689, 878, 1067, 1256, 1444, 1633, 1822, 2011, 2200],
   "repetitions": 3,
   "samples_per_second": 10,
   "cool_to_c": 67,

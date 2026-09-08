@@ -106,13 +106,40 @@ run far hotter under load.
 
 ### SCLK reference values
 
-Ten reference values for binning observed samples — not requested clock locks.
-`clock_mode` is `observe`; the collector never writes clocks. They should span
-the node's DPM range:
+The ten frequencies the sweep visits. They should span the node's DPM range:
 
 ```bash
 cat /sys/class/drm/card*/device/pp_dpm_sclk
 ```
+
+`collect.py` itself **never sets clocks**. `clock_mode` is `observe`, it is
+validated to reject any other value, and the code hardcodes `observe`
+internally regardless of what the config says — so changing it has no effect.
+The collector only records the clock it observes, per sample, in
+`actual_sclk_mhz_{mean,min,max}`.
+
+The frequency axis therefore has to come from outside the collector.
+`scripts/sweep_frequencies.sh` supplies it: it reads this list, sets each
+frequency, and runs the collector once per frequency. See
+**Sweeping across frequencies** below.
+
+Nothing inside `collect.py` reads this list beyond validating that it holds ten
+increasing positive values, so a single `collect.py` invocation ignores it
+entirely.
+
+> **Note on provenance.** `NOTICE.md` describes this archive as containing a
+> "clock-control collector", and `collect.py`'s signal handler prints
+> "saving state and resetting clocks" — but no clock-setting code is present.
+> The `clock_mode` field and this frequency list appear to be remnants of a
+> clock-driving mode that was removed when the archive was cut. The wrapper
+> script exists to substitute for it.
+
+### The `binary` path
+
+Resolved relative to the **config file's** directory, not the working directory.
+A config kept outside the repository therefore needs an absolute path in
+`binary`, or the collector will look for `build/cu_power_bench` next to the
+config and fail.
 
 ### Environment check
 
@@ -122,7 +149,7 @@ cat /sys/class/drm/card*/device/pp_dpm_sclk
 
 ## Test
 
-Validate the schedule without running anything:
+Validate the schedule without running any workload or touching clocks:
 
 ```bash
 python3 scripts/collect.py --config config.json --output-dir results/run1 --dry-run
@@ -140,7 +167,51 @@ the DPM range. **A `status` of `ok` alone is not sufficient** — a measurement
 taken against an idle card yields ~0 % utilisation, minimum SCLK and flat idle
 power, and still reports `ok`.
 
+## Sweeping across frequencies
+
+`collect.py` measures at whatever clock the GPU happens to be at. Left alone,
+with `power_dpm_force_performance_level=auto` and workloads that saturate their
+units, the governor holds maximum SCLK and **every measurement lands at one
+frequency** — a single-point dataset that looks entirely healthy.
+
+To vary the clock, drive the sweep from outside:
+
+```bash
+./scripts/sweep_frequencies.sh config.json results/fsweep
+```
+
+For each frequency in `sclk_reference_values_mhz` it caps SCLK, runs the
+collector into `results/fsweep/sclk_<MHz>/`, and reports the achieved clock
+against the requested one. Each output directory gets a `clock_request.json`
+recording what was asked for and by which method, so the data is
+self-describing rather than relying on directory names.
+
+It needs `sudo` for `amd-smi`. It resets the clock state before each frequency,
+so no point can inherit a cap from the previous one, and again on exit including
+on interrupt or failure. Frequencies already marked `completed` are skipped, so
+an interrupted sweep resumes.
+
+Three things it handles that are easy to get wrong by hand:
+
+- **`amd-smi` exits 0 even when it refuses a request.** A rejected cap leaves
+  the GPU at full speed, and the run then produces a complete dataset at the
+  wrong frequency with no error anywhere. The script inspects the output rather
+  than the exit code.
+- **`-L sclk max` cannot be set to the DPM minimum**, which is rejected as
+  `AMDSMI_STATUS_NOT_SUPPORTED`. The bottom of the range falls back to
+  performance determinism (`amd-smi set -d`), which also tracks the request
+  more precisely than capping does.
+- **Clock-setting tools index GPUs by PCI address; ROCr indexes by KFD node.**
+  The script resolves the config's `device` to a PCI address and addresses
+  `amd-smi` by that, so it cannot cap a different GPU than the one being
+  measured.
+
+Always check achieved against requested in the script's output. An unhonoured
+cap is silent in the data.
+
 ## Run
+
+A single run at whatever clock the GPU is currently at:
 
 ```bash
 mkdir -p results/run1

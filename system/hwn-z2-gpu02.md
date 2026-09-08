@@ -64,14 +64,55 @@ pp_dpm_sclk:  0: 500Mhz   1: 2200Mhz
 mclk:         2000 MHz
 ```
 
-The config's SCLK reference values stop at 2100, so the top bin never fills.
-Harmless under `clock_mode: observe`, but worth widening to 2200 for this node.
+The config's SCLK reference values originally stopped at 2100 MHz — MI300X's
+peak engine clock — so the top of this part's range was never requested. They
+have been re-spaced evenly across 500–2200 MHz.
+
+Note that `collect.py` never reads that list; it only validates it. The
+frequencies are consumed by `scripts/sweep_frequencies.sh`, which sets each one
+before invoking the collector.
 
 ## Access
 
 Users need the `render` group for `/dev/kfd`; without it `rocminfo` fails with
 a permission error and no GPU work can run. Group membership here is
 directory-backed, so a local `usermod` may drift — add it centrally.
+
+## SCLK sweep
+
+Device 0, 256 blocks x 1024 threads, 5 workloads x 3 repetitions per frequency
+(15 measurements each, 150 total, all successful). Clocks set externally by
+`scripts/sweep_frequencies.sh`; `clock_mode` remains `observe`.
+
+| requested MHz | achieved MHz | deviation | power W | n |
+|---|---|---|---|---|
+| 500 | 496 | -0.7% | 278–337 | 15 |
+| 689 | 673 | -2.3% | 285–360 | 15 |
+| 878 | 856 | -2.5% | 288–383 | 15 |
+| 1067 | 1035 | -3.0% | 293–411 | 15 |
+| 1256 | 1214 | -3.3% | 300–439 | 15 |
+| 1444 | 1381 | -4.4% | 307–469 | 15 |
+| 1633 | 1554 | -4.8% | 323–513 | 15 |
+| 1822 | 1807 | -0.8% | 341–628 | 15 |
+| 2011 | 1808 | -10.1% | 341–627 | 15 |
+| 2200 | 2194 | -0.3% | 372–789 | 15 |
+
+**Requested SCLK does not map linearly onto achieved.** The undershoot widens
+with frequency, from −0.7% at 500 MHz to −4.8% at 1633 MHz, then 1822 and 2011
+MHz both resolve to the same hardware clock point near 1807 MHz. Ten requested
+frequencies therefore yield **nine distinct measured clocks**, with a ~390 MHz
+gap between 1807 and 2194 MHz. Quote the achieved column, not the requested one.
+
+The 1822/2011 collapse is reproducible across independent runs, including with
+the clock state reset immediately beforehand, so it is hardware behaviour rather
+than an artefact of the sweep script.
+
+`-L sclk max` cannot be set to 500 MHz on this part — it equals the DPM minimum
+and returns `AMDSMI_STATUS_NOT_SUPPORTED`. The bottom of the range is set with
+`amd-smi set -d` (performance determinism) instead, which also tracks the
+request more closely than capping does. Note that `amd-smi` exits 0 even when it
+refuses a request, so a rejected cap yields a complete dataset at the wrong
+frequency with no error.
 
 ## Observed power envelopes
 
