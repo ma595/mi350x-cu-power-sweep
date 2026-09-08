@@ -134,6 +134,13 @@ entirely.
 > clock-driving mode that was removed when the archive was cut. The wrapper
 > script exists to substitute for it.
 
+### The `binary` path
+
+Resolved relative to the **config file's** directory, not the working directory.
+A config kept outside the repository therefore needs an absolute path in
+`binary`, or the collector will look for `build/cu_power_bench` next to the
+config and fail.
+
 ### Environment check
 
 ```bash
@@ -179,9 +186,10 @@ against the requested one. Each output directory gets a `clock_request.json`
 recording what was asked for and by which method, so the data is
 self-describing rather than relying on directory names.
 
-It needs `sudo` for `amd-smi`, resets clocks on exit including on interrupt or
-failure, and skips frequencies already marked `completed` so an interrupted
-sweep resumes.
+It needs `sudo` for `amd-smi`. It resets the clock state before each frequency,
+so no point can inherit a cap from the previous one, and again on exit including
+on interrupt or failure. Frequencies already marked `completed` are skipped, so
+an interrupted sweep resumes.
 
 Three things it handles that are easy to get wrong by hand:
 
